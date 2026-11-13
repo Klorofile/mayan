@@ -1,0 +1,31 @@
+{
+  "name": "mayan",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MAYAN HRIS monorepo",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @mayan/api --filter @mayan/web dev",
+    "dev:web": "pnpm --filter @mayan/web dev",
+    "dev:api": "pnpm --filter @mayan/api start:dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @mayan/api test && pnpm --filter @mayan/web test",
+    "test:api": "pnpm --filter @mayan/api test",
+    "test:web": "pnpm --filter @mayan/web test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css,prisma}\"",
+    "prisma:generate": "pnpm --filter @mayan/api prisma:generate",
+    "prisma:migrate": "pnpm --filter @mayan/api prisma:migrate",
+    "prisma:studio": "pnpm --filter @mayan/api prisma:studio",
+    "prisma:seed": "pnpm --filter @mayan/api seed"
+  },
+  "devDependencies": {
+    "eslint": "8.57.1",
+    "eslint-config-next": "14.2.35",
+    "next": "14.2.35",
+    "prettier": "^3.3.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "^5.6.3"
+  },
+  "packageManager": "pnpm@9.12.3"
+}

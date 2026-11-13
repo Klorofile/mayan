@@ -1,0 +1,873 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum EmploymentStatus {
+  PROBATION
+  ACTIVE
+  RESIGNED
+  TERMINATED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum DocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum BankAccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SalaryStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ScheduleType {
+  FIXED
+  SHIFT
+  FLEXIBLE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  LEAVE
+  SICK
+  PERMISSION
+}
+
+enum CorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollPeriodStatus {
+  OPEN
+  LOCKED
+  PROCESSED
+  CLOSED
+}
+
+enum PayrollStatus {
+  DRAFT
+  CALCULATED
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum SalaryComponentType {
+  EARNING
+  DEDUCTION
+  BENEFIT
+  TAX
+}
+
+enum CalculationType {
+  FIXED
+  PERCENTAGE
+  FORMULA
+}
+
+enum ApprovalWorkflowStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalAction {
+  APPROVE
+  REJECT
+  REQUEST_CHANGE
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  EXPORT
+}
+
+model Company {
+  id          String        @id @default(uuid()) @db.Uuid
+  companyCode String        @unique
+  name        String
+  legalName   String?
+  taxNumber   String?
+  email       String?
+  phone       String?
+  address     String?
+  status      CompanyStatus @default(ACTIVE)
+  branches    Branch[]
+  departments Department[]
+  positions   Position[]
+  users       User[]
+  roles       Role[]
+  permissions Permission[]
+  employees   Employee[]
+  workSchedules WorkSchedule[]
+  leaveTypes  LeaveType[]
+  payrollPeriods PayrollPeriod[]
+  salaryComponents SalaryComponent[]
+  approvalWorkflows ApprovalWorkflow[]
+  notifications Notification[]
+  auditLogs   AuditLog[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  // companyCode is globally unique so each tenant/company can be resolved safely from subdomain, invite, or API context.
+  @@index([status])
+  @@map("companies")
+}
+
+model Branch {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  address     String?
+  city        String?
+  province    String?
+  postalCode  String?
+  phone       String?
+  latitude    Decimal?     @db.Decimal(10, 7)
+  longitude   Decimal?     @db.Decimal(10, 7)
+  radiusMeter Int          @default(100)
+  departments Department[]
+  employees   Employee[]
+  workSchedules WorkSchedule[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("branches")
+}
+
+model Department {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  branchId    String?      @db.Uuid
+  parentId    String?      @db.Uuid
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch      Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Department[] @relation("DepartmentHierarchy")
+  code        String
+  name        String
+  positions   Position[]
+  employees   Employee[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([branchId])
+  @@map("departments")
+}
+
+model Position {
+  id           String       @id @default(uuid()) @db.Uuid
+  companyId    String       @db.Uuid
+  departmentId String?      @db.Uuid
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  code         String
+  name         String
+  level        Int          @default(1)
+  employees    Employee[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([departmentId])
+  @@map("positions")
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  companyId    String     @db.Uuid
+  employeeId   String?    @unique @db.Uuid
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee     Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  email        String     @unique
+  passwordHash String
+  isActive     Boolean    @default(true)
+  lastLoginAt  DateTime?
+  roles        UserRole[]
+  notifications Notification[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  // email is unique globally to simplify login; companyId is still indexed for tenant-scoped user queries.
+  @@index([companyId])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  companyId   String           @db.Uuid
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  description String?
+  isSystem    Boolean          @default(false)
+  users       UserRole[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  companyId   String           @db.Uuid
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code        String
+  resource    String
+  action      String
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("permissions")
+}
+
+model UserRole {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  roleId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid()) @db.Uuid
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Employee {
+  id              String            @id @default(uuid()) @db.Uuid
+  companyId       String            @db.Uuid
+  branchId        String?           @db.Uuid
+  departmentId    String?           @db.Uuid
+  positionId      String?           @db.Uuid
+  workScheduleId  String?           @db.Uuid
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch          Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department      Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  position        Position?         @relation(fields: [positionId], references: [id], onDelete: SetNull)
+  workSchedule    WorkSchedule?     @relation(fields: [workScheduleId], references: [id], onDelete: SetNull)
+  user            User?
+  employeeNumber  String            @unique
+  email           String            @unique
+  fullName        String
+  phone           String?
+  photoUrl        String?
+  gender          Gender?
+  maritalStatus   MaritalStatus?
+  birthDate       DateTime?
+  hireDate        DateTime
+  resignDate      DateTime?
+  status          EmploymentStatus  @default(PROBATION)
+  documents       EmployeeDocument[]
+  contracts       EmployeeContract[]
+  bankAccounts    EmployeeBankAccount[]
+  salaries        EmployeeSalary[]
+  salaryComponents EmployeeSalaryComponent[]
+  attendances     Attendance[]
+  attendanceCorrections AttendanceCorrection[]
+  leaveBalances   LeaveBalance[]
+  leaveRequests   LeaveRequest[]
+  payrolls        Payroll[]
+  approvals       Approval[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+
+  // employeeNumber and email are unique by request; companyId indexes keep tenant dashboards fast.
+  @@index([companyId])
+  @@index([branchId])
+  @@index([departmentId])
+  @@index([positionId])
+  @@index([status])
+  @@map("employees")
+}
+
+model EmployeeDocument {
+  id          String         @id @default(uuid()) @db.Uuid
+  companyId   String         @db.Uuid
+  employeeId  String         @db.Uuid
+  employee    Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  documentType String
+  documentNumber String?
+  fileName    String
+  fileUrl     String
+  issuedAt    DateTime?
+  expiredAt   DateTime?
+  status      DocumentStatus @default(PENDING)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_documents")
+}
+
+model EmployeeContract {
+  id          String         @id @default(uuid()) @db.Uuid
+  companyId   String         @db.Uuid
+  employeeId  String         @db.Uuid
+  employee    Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  contractNumber String
+  contractType String
+  startDate   DateTime
+  endDate     DateTime?
+  fileUrl     String?
+  status      ContractStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, contractNumber])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_contracts")
+}
+
+model EmployeeBankAccount {
+  id            String            @id @default(uuid()) @db.Uuid
+  companyId     String            @db.Uuid
+  employeeId    String            @db.Uuid
+  employee      Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  bankName      String
+  accountNumber String
+  accountName   String
+  isPrimary     Boolean           @default(false)
+  status        BankAccountStatus @default(ACTIVE)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_bank_accounts")
+}
+
+model EmployeeSalary {
+  id           String       @id @default(uuid()) @db.Uuid
+  companyId    String       @db.Uuid
+  employeeId   String       @db.Uuid
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  baseSalary   Decimal      @db.Decimal(18, 2)
+  currency     String       @default("IDR")
+  effectiveFrom DateTime
+  effectiveTo  DateTime?
+  status       SalaryStatus @default(DRAFT)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  // Salary is modeled historically with effective dates instead of mutating one number forever.
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_salaries")
+}
+
+model WorkSchedule {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  branchId    String?      @db.Uuid
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch      Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  code        String
+  name        String
+  type        ScheduleType @default(FIXED)
+  timezone    String       @default("Asia/Jakarta")
+  mondayStart String?
+  mondayEnd   String?
+  tuesdayStart String?
+  tuesdayEnd   String?
+  wednesdayStart String?
+  wednesdayEnd   String?
+  thursdayStart String?
+  thursdayEnd   String?
+  fridayStart String?
+  fridayEnd   String?
+  saturdayStart String?
+  saturdayEnd   String?
+  sundayStart String?
+  sundayEnd   String?
+  employees   Employee[]
+  attendances Attendance[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([branchId])
+  @@map("work_schedules")
+}
+
+model Attendance {
+  id             String           @id @default(uuid()) @db.Uuid
+  companyId      String           @db.Uuid
+  employeeId     String           @db.Uuid
+  workScheduleId String?          @db.Uuid
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workSchedule   WorkSchedule?    @relation(fields: [workScheduleId], references: [id], onDelete: SetNull)
+  attendanceDate DateTime
+  clockInAt      DateTime?
+  clockOutAt     DateTime?
+  clockInLatitude Decimal?        @db.Decimal(10, 7)
+  clockInLongitude Decimal?       @db.Decimal(10, 7)
+  clockOutLatitude Decimal?       @db.Decimal(10, 7)
+  clockOutLongitude Decimal?      @db.Decimal(10, 7)
+  lateMinutes   Int               @default(0)
+  workingMinutes Int              @default(0)
+  status         AttendanceStatus @default(PRESENT)
+  notes          String?
+  corrections    AttendanceCorrection[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([employeeId, attendanceDate])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([attendanceDate])
+  @@index([status])
+  @@map("attendances")
+}
+
+model AttendanceCorrection {
+  id             String           @id @default(uuid()) @db.Uuid
+  companyId      String           @db.Uuid
+  employeeId     String           @db.Uuid
+  attendanceId   String?          @db.Uuid
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  attendance     Attendance?      @relation(fields: [attendanceId], references: [id], onDelete: SetNull)
+  requestedClockInAt DateTime?
+  requestedClockOutAt DateTime?
+  reason         String
+  status         CorrectionStatus @default(PENDING)
+  reviewedAt     DateTime?
+  reviewerNote   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([attendanceId])
+  @@index([status])
+  @@map("attendance_corrections")
+}
+
+model LeaveType {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @db.Uuid
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code            String
+  name            String
+  annualQuotaDays Decimal        @default(0) @db.Decimal(5, 2)
+  isPaid          Boolean        @default(true)
+  requiresApproval Boolean       @default(true)
+  balances        LeaveBalance[]
+  requests        LeaveRequest[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("leave_types")
+}
+
+model LeaveBalance {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @db.Uuid
+  employeeId  String    @db.Uuid
+  leaveTypeId String    @db.Uuid
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  year        Int
+  openingBalance Decimal @default(0) @db.Decimal(5, 2)
+  accrued     Decimal   @default(0) @db.Decimal(5, 2)
+  used        Decimal   @default(0) @db.Decimal(5, 2)
+  remaining   Decimal   @default(0) @db.Decimal(5, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@index([companyId])
+  @@index([employeeId])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id          String      @id @default(uuid()) @db.Uuid
+  companyId   String      @db.Uuid
+  employeeId  String      @db.Uuid
+  leaveTypeId String      @db.Uuid
+  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType   LeaveType   @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  startDate   DateTime
+  endDate     DateTime
+  totalDays   Decimal     @db.Decimal(5, 2)
+  reason      String
+  attachmentUrl String?
+  status      LeaveStatus @default(PENDING)
+  managerApprovedAt DateTime?
+  hrApprovedAt DateTime?
+  rejectedAt  DateTime?
+  cancelledAt DateTime?
+  approvalNote String?
+  approvals   Approval[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("leave_requests")
+}
+
+model PayrollPeriod {
+  id          String              @id @default(uuid()) @db.Uuid
+  companyId   String              @db.Uuid
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  paymentDate DateTime?
+  status      PayrollPeriodStatus @default(OPEN)
+  payrolls    Payroll[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([status])
+  @@map("payroll_periods")
+}
+
+model SalaryComponent {
+  id          String              @id @default(uuid()) @db.Uuid
+  companyId   String              @db.Uuid
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  type        SalaryComponentType
+  calculationType CalculationType  @default(FIXED)
+  defaultAmount Decimal            @default(0) @db.Decimal(18, 2)
+  isTaxable    Boolean             @default(false)
+  employeeComponents EmployeeSalaryComponent[]
+  payrollComponents PayrollComponent[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("salary_components")
+}
+
+model EmployeeSalaryComponent {
+  id                String          @id @default(uuid()) @db.Uuid
+  companyId         String          @db.Uuid
+  employeeId        String          @db.Uuid
+  salaryComponentId String          @db.Uuid
+  employee          Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  salaryComponent   SalaryComponent @relation(fields: [salaryComponentId], references: [id], onDelete: Restrict)
+  amount            Decimal         @db.Decimal(18, 2)
+  effectiveFrom     DateTime
+  effectiveTo       DateTime?
+  status            SalaryStatus    @default(ACTIVE)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_salary_components")
+}
+
+model Payroll {
+  id              String        @id @default(uuid()) @db.Uuid
+  companyId       String        @db.Uuid
+  employeeId      String        @db.Uuid
+  payrollPeriodId String        @db.Uuid
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Restrict)
+  basicSalary     Decimal       @default(0) @db.Decimal(18, 2)
+  allowance       Decimal       @default(0) @db.Decimal(18, 2)
+  overtime        Decimal       @default(0) @db.Decimal(18, 2)
+  deduction       Decimal       @default(0) @db.Decimal(18, 2)
+  tax             Decimal       @default(0) @db.Decimal(18, 2)
+  grossPay        Decimal       @default(0) @db.Decimal(18, 2)
+  totalDeduction  Decimal       @default(0) @db.Decimal(18, 2)
+  netPay          Decimal       @default(0) @db.Decimal(18, 2)
+  status          PayrollStatus @default(DRAFT)
+  paidAt          DateTime?
+  components      PayrollComponent[]
+  approvals       Approval[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([employeeId, payrollPeriodId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([payrollPeriodId])
+  @@index([status])
+  @@map("payrolls")
+}
+
+model PayrollComponent {
+  id                String              @id @default(uuid()) @db.Uuid
+  companyId         String              @db.Uuid
+  payrollId         String              @db.Uuid
+  salaryComponentId String              @db.Uuid
+  payroll           Payroll             @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  salaryComponent   SalaryComponent     @relation(fields: [salaryComponentId], references: [id], onDelete: Restrict)
+  componentCode     String
+  componentName     String
+  type              SalaryComponentType
+  amount            Decimal             @db.Decimal(18, 2)
+  notes             String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+
+  @@index([companyId])
+  @@index([payrollId])
+  @@map("payroll_components")
+}
+
+model ApprovalWorkflow {
+  id          String                 @id @default(uuid()) @db.Uuid
+  companyId   String                 @db.Uuid
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  module      String
+  status      ApprovalWorkflowStatus @default(ACTIVE)
+  steps       ApprovalStep[]
+  approvals   Approval[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  deletedAt   DateTime?
+
+  // module can hold values like LEAVE_REQUEST, PAYROLL, or ATTENDANCE_CORRECTION for workflow reuse.
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([status])
+  @@map("approval_workflows")
+}
+
+model ApprovalStep {
+  id          String           @id @default(uuid()) @db.Uuid
+  companyId   String           @db.Uuid
+  workflowId  String           @db.Uuid
+  workflow    ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepOrder   Int
+  name        String
+  roleId      String?          @db.Uuid
+  approverEmployeeId String?   @db.Uuid
+  approvals   Approval[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([workflowId, stepOrder])
+  @@index([companyId])
+  @@index([workflowId])
+  @@map("approval_steps")
+}
+
+model Approval {
+  id              String           @id @default(uuid()) @db.Uuid
+  companyId       String           @db.Uuid
+  workflowId      String           @db.Uuid
+  approvalStepId  String?          @db.Uuid
+  approverEmployeeId String?       @db.Uuid
+  leaveRequestId  String?          @db.Uuid
+  payrollId       String?          @db.Uuid
+  workflow        ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  approvalStep    ApprovalStep?    @relation(fields: [approvalStepId], references: [id], onDelete: SetNull)
+  approverEmployee Employee?       @relation(fields: [approverEmployeeId], references: [id], onDelete: SetNull)
+  leaveRequest    LeaveRequest?    @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  payroll         Payroll?         @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  targetType      String
+  targetId        String           @db.Uuid
+  action          ApprovalAction?
+  status          ApprovalStatus   @default(PENDING)
+  note            String?
+  actedAt         DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  // targetType/targetId allows future approval targets without changing the table every time.
+  @@index([companyId])
+  @@index([approverEmployeeId])
+  @@index([status])
+  @@index([targetType, targetId])
+  @@map("approvals")
+}
+
+model Notification {
+  id        String             @id @default(uuid()) @db.Uuid
+  companyId String             @db.Uuid
+  userId    String             @db.Uuid
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  linkUrl   String?
+  status    NotificationStatus @default(UNREAD)
+  readAt    DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([status])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  companyId   String      @db.Uuid
+  userId      String?     @db.Uuid
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      AuditAction
+  entityName  String
+  entityId    String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  // Audit rows are append-oriented; keep JSON snapshots to support compliance and forensic review.
+  @@index([companyId])
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
